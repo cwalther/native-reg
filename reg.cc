@@ -30,7 +30,7 @@ std::wstring to_wstring(Value value) {
 
 HKEY to_hkey(Value value) {
     if (value.IsExternal()) {
-        return static_cast<HKEY>(value.As<External<void>>().Data());
+        return *(value.As<External<HKEY>>().Data());
     }
     return reinterpret_cast<HKEY>((size_t) value.As<Number>().Uint32Value());
 }
@@ -71,8 +71,16 @@ Error win32_error(Env env, DWORD code, const char* syscall) {
     return error;
 }
 
-void key_finalizer(Env env, void* hkey) {
-    RegCloseKey(reinterpret_cast<HKEY>(hkey));
+void key_finalizer(Env env, HKEY* box) {
+    if (*box != 0) {
+        RegCloseKey(*box);
+    }
+    delete box;
+}
+
+External<HKEY> to_external(Env env, HKEY hkey) {
+    HKEY* box = new HKEY(hkey);
+    return External<HKEY>::New(env, box, key_finalizer);
 }
 
 Value openKey(const CallbackInfo& info) {
@@ -99,7 +107,7 @@ Value openKey(const CallbackInfo& info) {
         throw win32_error(env, status, "RegOpenKeyExW");
     }
 
-    return External<void>::New(env, hSubKey, key_finalizer);
+    return to_external(env, hSubKey);
 }
 
 Value createKey(const CallbackInfo& info) {
@@ -126,7 +134,7 @@ Value createKey(const CallbackInfo& info) {
         throw win32_error(env, status, "RegCreateKeyExW");
     }
 
-    return External<void>::New(env, hSubKey, key_finalizer);
+    return to_external(env, hSubKey);
 }
 
 Value openCurrentUser(const CallbackInfo& info) {
@@ -141,7 +149,7 @@ Value openCurrentUser(const CallbackInfo& info) {
         throw win32_error(env, status, "RegOpenCurrentUser");
     }
 
-    return External<void>::New(env, hkey, key_finalizer);
+    return to_external(env, hkey);
 }
 
 Value loadAppKey(const CallbackInfo& info) {
@@ -162,7 +170,7 @@ Value loadAppKey(const CallbackInfo& info) {
         throw win32_error(env, status, "RegLoadAppKeyW");
     }
 
-    return External<void>::New(env, hkey, key_finalizer);
+    return to_external(env, hkey);
 }
 
 Value enumKeyNames(const CallbackInfo& info) {
@@ -466,10 +474,17 @@ Value deleteValue(const CallbackInfo& info) {
 
 void closeKey(const CallbackInfo& info) {
     auto env = info.Env();
+    LSTATUS status = 0;
 
-    auto hkey = to_hkey(info[0]);
-    auto status = RegCloseKey(hkey);
-
+    if (info[0].IsExternal()) {
+        HKEY* box = info[0].As<External<HKEY>>().Data();
+        status = RegCloseKey(*box);
+        *box = 0;
+    }
+    else {
+        auto hkey = to_hkey(info[0]);
+        status = RegCloseKey(hkey);
+    }
     if (status != ERROR_SUCCESS) {
         throw win32_error(env, status, "RegCloseKeyW");
     }
