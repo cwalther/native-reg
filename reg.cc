@@ -71,10 +71,6 @@ Error win32_error(Env env, DWORD code, const char* syscall) {
     return error;
 }
 
-void key_finalizer(Env env, void* hkey) {
-    RegCloseKey(reinterpret_cast<HKEY>(hkey));
-}
-
 Value openKey(const CallbackInfo& info) {
     auto env = info.Env();
 
@@ -99,7 +95,7 @@ Value openKey(const CallbackInfo& info) {
         throw win32_error(env, status, "RegOpenKeyExW");
     }
 
-    return External<void>::New(env, hSubKey, key_finalizer);
+    return External<void>::New(env, hSubKey);
 }
 
 Value createKey(const CallbackInfo& info) {
@@ -126,7 +122,7 @@ Value createKey(const CallbackInfo& info) {
         throw win32_error(env, status, "RegCreateKeyExW");
     }
 
-    return External<void>::New(env, hSubKey, key_finalizer);
+    return External<void>::New(env, hSubKey);
 }
 
 Value openCurrentUser(const CallbackInfo& info) {
@@ -141,7 +137,7 @@ Value openCurrentUser(const CallbackInfo& info) {
         throw win32_error(env, status, "RegOpenCurrentUser");
     }
 
-    return External<void>::New(env, hkey, key_finalizer);
+    return External<void>::New(env, hkey);
 }
 
 Value loadAppKey(const CallbackInfo& info) {
@@ -162,7 +158,7 @@ Value loadAppKey(const CallbackInfo& info) {
         throw win32_error(env, status, "RegLoadAppKeyW");
     }
 
-    return External<void>::New(env, hkey, key_finalizer);
+    return External<void>::New(env, hkey);
 }
 
 Value enumKeyNames(const CallbackInfo& info) {
